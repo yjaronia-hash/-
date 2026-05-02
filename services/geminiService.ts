@@ -1,9 +1,15 @@
 import { GoogleGenAI, Type, Modality } from "@google/genai";
 import type { AnalysisResult } from '../types';
 
-// FIX: Initialize GoogleGenAI with API_KEY from environment variables directly.
-// The API key must be obtained exclusively from `process.env.API_KEY`.
-const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
+// FIX: Initialize GoogleGenAI with API_KEY from environment variables.
+// In Vite, we use define in vite.config.ts to expose these to the client.
+const apiKey = (typeof process !== 'undefined' && process.env.API_KEY) || import.meta.env.VITE_GEMINI_API_KEY || '';
+
+if (!apiKey) {
+    console.warn("GEMINI_API_KEY is not defined. Please set it in your environment variables.");
+}
+
+const ai = new GoogleGenAI({ apiKey });
 
 const responseSchema = {
     type: Type.OBJECT,

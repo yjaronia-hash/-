@@ -1,6 +1,8 @@
 
 import React, { useCallback, useState } from 'react';
-import { UploadIcon } from './icons';
+import { Upload, Image as ImageIcon, FileWarning } from 'lucide-react';
+import { motion, AnimatePresence } from 'framer-motion';
+import { cn } from '../lib/utils';
 
 interface ImageUploaderProps {
     onImageUpload: (files: File[]) => void;
@@ -35,9 +37,18 @@ const ImageUploader: React.FC<ImageUploaderProps> = ({ onImageUpload }) => {
     }, [onImageUpload]);
 
     return (
-        <div className="w-full max-w-3xl mx-auto flex flex-col items-center justify-center bg-gray-800 p-8 rounded-2xl shadow-2xl border-2 border-dashed border-gray-600">
+        <motion.div 
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            className="w-full max-w-3xl mx-auto"
+        >
             <div
-                className={`w-full p-10 border-2 border-dashed rounded-lg text-center cursor-pointer transition-all duration-300 ${isDragging ? 'border-blue-400 bg-gray-700 scale-105' : 'border-gray-500'}`}
+                className={cn(
+                    "relative group flex flex-col items-center justify-center p-12 rounded-3xl transition-all duration-500 border-2 border-dashed overflow-hidden",
+                    isDragging 
+                        ? "border-blue-500 bg-blue-500/5 scale-[1.02]" 
+                        : "border-gray-700 bg-gray-800/50 hover:border-gray-600 hover:bg-gray-800"
+                )}
                 onDragEnter={handleDragEvents}
                 onDragOver={handleDragEvents}
                 onDragLeave={handleDragEvents}
@@ -52,20 +63,44 @@ const ImageUploader: React.FC<ImageUploaderProps> = ({ onImageUpload }) => {
                     onChange={handleFileChange}
                     multiple
                 />
-                <div className="flex flex-col items-center text-gray-400">
-                    <UploadIcon className="w-16 h-16 mb-4 text-gray-500" />
-                    <p className="text-xl font-semibold text-gray-300">이미지 파일들을 여기로 드래그 앤 드롭</p>
-                    <p className="mt-2">또는</p>
+                
+                <div className="relative z-10 flex flex-col items-center text-center">
+                    <div className={cn(
+                        "mb-6 p-6 rounded-2xl bg-gray-900/50 text-gray-400 transition-colors duration-300",
+                        isDragging ? "text-blue-500 bg-blue-500/10" : "group-hover:text-gray-300"
+                    )}>
+                        <Upload className="w-12 h-12" />
+                    </div>
+                    
+                    <h3 className="text-2xl font-bold text-white mb-2 font-sans">이미지를 업로드하세요</h3>
+                    <p className="text-gray-400 mb-8 max-w-sm">
+                        학습하고 싶은 한국어 이미지를 드래그하거나 클릭하여 추가하세요.
+                    </p>
+                    
                     <button
                         type="button"
-                        className="mt-4 px-6 py-2 bg-blue-600 text-white font-semibold rounded-lg hover:bg-blue-700 transition-colors duration-200"
+                        className="px-8 py-3 bg-blue-600 text-white font-semibold rounded-full hover:bg-blue-500 transition-all duration-300 shadow-lg shadow-blue-900/20 active:scale-95"
                     >
-                        파일들 선택하기
+                        파일 선택하기
                     </button>
-                     <p className="mt-4 text-sm text-gray-500">PNG, JPG, WEBP 지원</p>
+                    
+                    <div className="mt-8 flex gap-6 text-gray-500 text-sm">
+                        <div className="flex items-center gap-1.5">
+                            <ImageIcon className="w-4 h-4" />
+                            <span>PNG, JPG, WEBP</span>
+                        </div>
+                        <div className="flex items-center gap-1.5">
+                            <FileWarning className="w-4 h-4" />
+                            <span>최대 10MB</span>
+                        </div>
+                    </div>
                 </div>
+
+                {/* Decorative backgrounds */}
+                <div className="absolute top-0 right-0 -mr-20 -mt-20 w-64 h-64 bg-blue-500/5 rounded-full blur-3xl" />
+                <div className="absolute bottom-0 left-0 -ml-20 -mb-20 w-64 h-64 bg-purple-500/5 rounded-full blur-3xl" />
             </div>
-        </div>
+        </motion.div>
     );
 };
 

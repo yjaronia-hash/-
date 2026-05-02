@@ -1,5 +1,6 @@
 {
-  "name": "Copy of Copy of Copy of Copy of Copy of Korean Image Learner",
-  "description": "An application for Japanese learners of Korean to extract, analyze, and translate Korean text from images. It provides the original text, key vocabulary breakdowns, and a full Japanese translation.",
-  "requestFramePermissions": []
+  "name": "이미지로 배우는 한국어",
+  "description": "일본인 학습자를 위한 한국어 이미지 텍스트 분석 및 번역 애플리케이션입니다.",
+  "requestFramePermissions": [],
+  "majorCapabilities": []
 }

@@ -1,7 +1,22 @@
 import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import type { AnalysisResult, VocabularyItem, FormattedTextItem } from '../types';
 import { generateSpeech } from '../services/geminiService';
-import { TextIcon, VocabIcon, TranslateIcon, ClipboardIcon, CheckIcon, SpeakerIcon, PlayIcon, PauseIcon, StopIcon, DownloadIcon, TrashIcon } from './icons';
+import { 
+    FileText, 
+    BookOpen, 
+    Languages, 
+    Copy, 
+    Check, 
+    Volume2, 
+    Play, 
+    Pause, 
+    Square, 
+    Download, 
+    Trash2,
+    RefreshCw
+} from 'lucide-react';
+import { motion, AnimatePresence } from 'framer-motion';
+import { cn } from '../lib/utils';
 
 interface ResultsDisplayProps {
     result: AnalysisResult;
@@ -328,53 +343,74 @@ const SpeechPlayer: React.FC<{ textItems: FormattedTextItem[] }> = ({ textItems 
     }
 
     return (
-        <div className="bg-gray-800 p-6 rounded-b-lg relative">
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">
-                <div>
-                    <label className="block text-sm font-medium text-gray-400 mb-2">성우 선택</label>
-                    <div className="flex rounded-md shadow-sm bg-gray-900/50 p-1">
-                         <button onClick={() => setVoice('female')} className={`flex-1 px-4 py-2 text-sm font-medium rounded-md transition-colors ${voice === 'female' ? 'bg-blue-600 text-white' : 'text-gray-300 hover:bg-gray-700'}`}>여자 성우</button>
-                         <button onClick={() => setVoice('male')} className={`flex-1 px-4 py-2 text-sm font-medium rounded-md transition-colors ${voice === 'male' ? 'bg-blue-600 text-white' : 'text-gray-300 hover:bg-gray-700'}`}>남자 성우</button>
+        <div className="bg-gray-800/40 p-8 relative min-h-[500px] flex flex-col">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-8 mb-10">
+                <div className="space-y-3">
+                    <label className="block text-xs font-bold uppercase tracking-widest text-gray-500">성우 선택</label>
+                    <div className="flex bg-gray-900/50 p-1 rounded-2xl border border-gray-700/50">
+                         <button onClick={() => setVoice('female')} className={cn("flex-1 px-4 py-2.5 text-sm font-semibold rounded-xl transition-all duration-300", voice === 'female' ? 'bg-blue-600 text-white shadow-lg shadow-blue-900/40' : 'text-gray-400 hover:text-gray-200 hover:bg-gray-800')}>여자 성우</button>
+                         <button onClick={() => setVoice('male')} className={cn("flex-1 px-4 py-2.5 text-sm font-semibold rounded-xl transition-all duration-300", voice === 'male' ? 'bg-blue-600 text-white shadow-lg shadow-blue-900/40' : 'text-gray-400 hover:text-gray-200 hover:bg-gray-800')}>남자 성우</button>
                     </div>
                 </div>
-                 <div>
-                    <label className="block text-sm font-medium text-gray-400 mb-2">속도 조절</label>
-                    <div className="flex rounded-md shadow-sm bg-gray-900/50 p-1">
+                 <div className="space-y-3">
+                    <label className="block text-xs font-bold uppercase tracking-widest text-gray-500">속도 조절</label>
+                    <div className="flex bg-gray-900/50 p-1 rounded-2xl border border-gray-700/50">
                         {speedLevels.map(level => (
-                             <button key={level.label} onClick={() => setSpeed(level.value)} className={`flex-1 px-2 py-2 text-xs font-medium rounded-md transition-colors ${speed === level.value ? 'bg-blue-600 text-white' : 'text-gray-300 hover:bg-gray-700'}`}>{level.label}</button>
+                             <button key={level.label} onClick={() => setSpeed(level.value)} className={cn("flex-1 px-2 py-2.5 text-[10px] font-bold rounded-xl transition-all duration-300", speed === level.value ? 'bg-blue-600 text-white shadow-lg shadow-blue-900/40' : 'text-gray-400 hover:text-gray-200 hover:bg-gray-800')}>{level.label}</button>
                         ))}
                     </div>
                 </div>
             </div>
 
-            <div className="flex items-center gap-4 mb-4">
-                <span className="text-sm font-mono text-gray-400">{formatTime(currentTime)}</span>
-                <input
-                    type="range"
-                    min="0"
-                    max={duration}
-                    step="0.1"
-                    value={currentTime}
-                    onChange={handleSeek}
-                    className="w-full h-2 bg-gray-700 rounded-lg appearance-none cursor-pointer accent-blue-500"
-                    disabled={isLoading || duration === 0}
-                />
-                <span className="text-sm font-mono text-gray-400">{formatTime(duration)}</span>
-            </div>
+            <div className="flex flex-col gap-6 items-center px-4 mb-10">
+                <div className="w-full flex items-center gap-6">
+                    <span className="text-xs font-mono font-bold text-blue-500 w-12">{formatTime(currentTime)}</span>
+                    <div className="relative flex-1 group py-4">
+                        <input
+                            type="range"
+                            min="0"
+                            max={duration}
+                            step="0.1"
+                            value={currentTime}
+                            onChange={handleSeek}
+                            className="w-full h-1.5 bg-gray-700 rounded-full appearance-none cursor-pointer accent-blue-500 hover:accent-blue-400 transition-all"
+                            disabled={isLoading || duration === 0}
+                        />
+                        {/* Progress bar overlay */}
+                        <div 
+                            className="absolute left-0 top-1/2 -translate-y-1/2 h-1.5 bg-blue-500 rounded-full pointer-events-none transition-all duration-100"
+                            style={{ width: `${(currentTime / (duration || 1)) * 100}%` }}
+                        />
+                    </div>
+                    <span className="text-xs font-mono font-bold text-gray-500 w-12 text-right">{formatTime(duration)}</span>
+                </div>
 
-            <div className="flex items-center justify-center gap-4 mb-6">
-                 <button onClick={handlePlayPause} disabled={isLoading || duration === 0} className="p-3 rounded-full bg-blue-600 text-white hover:bg-blue-700 disabled:bg-gray-600 disabled:cursor-not-allowed transition-all transform hover:scale-110" aria-label={playbackState === 'playing' ? 'Pause' : 'Play'}>
-                    {playbackState === 'playing' ? <PauseIcon className="w-8 h-8"/> : <PlayIcon className="w-8 h-8"/>}
-                </button>
-                <button onClick={handleStopClick} disabled={playbackState === 'stopped'} className="p-3 rounded-full bg-red-600 text-white hover:bg-red-700 disabled:bg-gray-600 transition-all transform hover:scale-110" aria-label="Stop">
-                    <StopIcon className="w-8 h-8"/>
-                </button>
-                 <button onClick={handleDownload} disabled={isLoading || duration === 0} className="p-3 rounded-full bg-green-600 text-white hover:bg-green-700 disabled:bg-gray-600 disabled:cursor-not-allowed transition-all transform hover:scale-110" aria-label="Download audio">
-                    <DownloadIcon className="w-8 h-8"/>
-                </button>
+                <div className="flex items-center justify-center gap-8">
+                     <button 
+                        onClick={handlePlayPause} 
+                        disabled={isLoading || duration === 0} 
+                        className="w-16 h-16 rounded-3xl bg-blue-600 text-white flex items-center justify-center hover:bg-blue-500 disabled:bg-gray-700 disabled:text-gray-600 shadow-xl shadow-blue-900/40 transition-all duration-300 transform hover:scale-105 active:scale-95"
+                    >
+                        {playbackState === 'playing' ? <Pause className="w-8 h-8 fill-current"/> : <Play className="w-8 h-8 fill-current ml-1"/>}
+                    </button>
+                    <button 
+                        onClick={handleStopClick} 
+                        disabled={playbackState === 'stopped'} 
+                        className="w-12 h-12 rounded-2xl bg-gray-800 text-gray-400 flex items-center justify-center hover:bg-gray-700 hover:text-white disabled:bg-gray-900/50 disabled:text-gray-700 border border-gray-700 transition-all duration-300"
+                    >
+                        <Square className="w-5 h-5 fill-current"/>
+                    </button>
+                     <button 
+                        onClick={handleDownload} 
+                        disabled={isLoading || duration === 0} 
+                        className="w-12 h-12 rounded-2xl bg-gray-800 text-gray-400 flex items-center justify-center hover:bg-gray-700 hover:text-white disabled:bg-gray-900/50 disabled:text-gray-700 border border-gray-700 transition-all duration-300"
+                    >
+                        <Download className="w-5 h-5"/>
+                    </button>
+                </div>
             </div>
             
-            <div className="prose prose-invert prose-lg max-w-none space-y-4 max-h-[40vh] overflow-y-auto pr-2">
+            <div className="flex-1 bg-gray-900/30 rounded-3xl p-8 border border-gray-800/50 overflow-y-auto max-h-[400px] scrollbar-thin scrollbar-thumb-gray-700">
                  {textItems.map((item, index) => {
                     const isPara = item.type === 'paragraph';
                     const paraIndex = isPara ? paragraphs.findIndex(p => p.content === item.content) : -1;
@@ -413,29 +449,40 @@ const ResultsDisplay: React.FC<ResultsDisplayProps> = ({ result, isConsolidated,
     const [copiedView, setCopiedView] = useState<View | 'speech' | null>(null);
 
     const handleCopy = (content: string, view: View) => {
-        if (!navigator.clipboard) {
-            console.error("Clipboard API not available");
-            return;
-        }
+        if (!navigator.clipboard) return;
         navigator.clipboard.writeText(content).then(() => {
             setCopiedView(view);
             setTimeout(() => setCopiedView(null), 2000);
-        }).catch(err => {
-            console.error('Failed to copy text: ', err);
         });
     };
 
     const CopyButton = ({ content, view }: { content: string; view: View }) => (
         <button
             onClick={() => handleCopy(content, view)}
-            className="absolute top-3 right-3 p-2 bg-gray-700/50 hover:bg-gray-600/50 rounded-full text-gray-300 hover:text-white transition-all duration-200"
+            className="absolute top-4 right-4 p-2.5 bg-gray-900/50 hover:bg-gray-700/80 rounded-xl text-gray-400 hover:text-white transition-all duration-200 border border-gray-700/50 backdrop-blur-sm group-hover:opacity-100"
             aria-label="Copy content"
         >
-            {copiedView === view ? (
-                <CheckIcon className="w-5 h-5 text-green-400" />
-            ) : (
-                <ClipboardIcon className="w-5 h-5" />
-            )}
+            <AnimatePresence mode="wait">
+                {copiedView === view ? (
+                    <motion.div
+                        key="check"
+                        initial={{ scale: 0.5, opacity: 0 }}
+                        animate={{ scale: 1, opacity: 1 }}
+                        exit={{ scale: 0.5, opacity: 0 }}
+                    >
+                        <Check className="w-4 h-4 text-green-400" />
+                    </motion.div>
+                ) : (
+                    <motion.div
+                        key="copy"
+                        initial={{ scale: 0.5, opacity: 0 }}
+                        animate={{ scale: 1, opacity: 1 }}
+                        exit={{ scale: 0.5, opacity: 0 }}
+                    >
+                        <Copy className="w-4 h-4" />
+                    </motion.div>
+                )}
+            </AnimatePresence>
         </button>
     );
 
@@ -455,10 +502,10 @@ const ResultsDisplay: React.FC<ResultsDisplayProps> = ({ result, isConsolidated,
                                 {!isConsolidated && onDeleteItemContent && (
                                     <button
                                         onClick={() => onDeleteItemContent(index)}
-                                        className="absolute top-0 right-0 p-2 bg-red-800/50 hover:bg-red-700/80 rounded-full text-red-300 hover:text-white transition-all duration-200 opacity-0 group-hover:opacity-100 focus:opacity-100"
+                                        className="absolute top-0 right-0 p-2 bg-red-900/20 hover:bg-red-900/40 rounded-xl text-red-400 hover:text-red-300 transition-all duration-200 border border-red-900/30 opacity-0 group-hover:opacity-100 focus:opacity-100 backdrop-blur-sm"
                                         aria-label="Delete this item"
                                     >
-                                        <TrashIcon className="w-5 h-5" />
+                                        <Trash2 className="w-4 h-4" />
                                     </button>
                                 )}
                             </div>
@@ -513,27 +560,51 @@ const ResultsDisplay: React.FC<ResultsDisplayProps> = ({ result, isConsolidated,
         return (
             <button
                 onClick={() => setActiveView(view)}
-                className={`flex-1 inline-flex items-center justify-center px-4 py-3 text-sm sm:text-base font-medium transition-all duration-200 ease-in-out focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-offset-gray-900 focus:ring-blue-500
-                    ${isActive
-                        ? 'bg-blue-600 text-white rounded-t-lg'
-                        : 'bg-gray-700 text-gray-300 hover:bg-gray-600 first:rounded-tl-lg last:rounded-tr-lg'
-                    }`}
+                className={cn(
+                    "relative flex-1 flex flex-col items-center justify-center py-4 gap-1.5 transition-all duration-300 group",
+                    isActive ? "text-blue-400" : "text-gray-500 hover:text-gray-300"
+                )}
             >
-                {icon}
-                <span className="ml-2">{label}</span>
+                <div className={cn(
+                    "p-2 rounded-xl transition-all duration-300",
+                    isActive ? "bg-blue-500/10" : "group-hover:bg-gray-800"
+                )}>
+                    {icon}
+                </div>
+                <span className="text-xs font-bold uppercase tracking-wider">{label}</span>
+                {isActive && (
+                    <motion.div 
+                        layoutId="activeTab"
+                        className="absolute bottom-0 left-0 right-0 h-0.5 bg-blue-500 shadow-[0_0_8px_rgba(59,130,246,0.5)]"
+                    />
+                )}
             </button>
         );
     };
 
     return (
-        <div className="w-full">
-            <div className="flex">
-                <TabButton view="vocabulary" label="어휘 분석" icon={<VocabIcon className="w-5 h-5"/>} />
-                <TabButton view="original" label="한국어 원문" icon={<TextIcon className="w-5 h-5"/>} />
-                <TabButton view="speech" label="읽어보기" icon={<SpeakerIcon className="w-5 h-5"/>} />
-                <TabButton view="translation" label="일본어 번역" icon={<TranslateIcon className="w-5 h-5"/>} />
+        <div className="w-full flex flex-col">
+            <div className="flex border-b border-gray-800 px-2 bg-gray-900/20 backdrop-blur-sm rounded-t-2xl">
+                <TabButton view="original" label="원문" icon={<FileText className="w-5 h-5"/>} />
+                <TabButton view="vocabulary" label="어휘" icon={<BookOpen className="w-5 h-5"/>} />
+                <TabButton view="speech" label="듣기" icon={<Volume2 className="w-5 h-5"/>} />
+                <TabButton view="translation" label="번역" icon={<Languages className="w-5 h-5"/>} />
             </div>
-            <div className="animate-fade-in">{renderContent()}</div>
+            
+            <div className="bg-gray-800/20 rounded-b-2xl overflow-hidden min-h-[400px]">
+                <AnimatePresence mode="wait">
+                    <motion.div 
+                        key={activeView}
+                        initial={{ opacity: 0, x: 10 }}
+                        animate={{ opacity: 1, x: 0 }}
+                        exit={{ opacity: 0, x: -10 }}
+                        transition={{ duration: 0.2 }}
+                        className="h-full"
+                    >
+                        {renderContent()}
+                    </motion.div>
+                </AnimatePresence>
+            </div>
         </div>
     );
 };
