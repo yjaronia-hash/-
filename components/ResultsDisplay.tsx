@@ -127,7 +127,7 @@ const SpeechPlayer: React.FC<{ textItems: FormattedTextItem[] }> = ({ textItems 
     const audioBufferRef = useRef<AudioBuffer | null>(null);
     const paragraphTimingsRef = useRef<{ start: number, end: number }[]>([]);
     
-    const animationFrameRef = useRef<number>();
+    const animationFrameRef = useRef<number | null>(null);
     const playbackOffsetRef = useRef(0);
     const playbackStartedAtRef = useRef(0);
     

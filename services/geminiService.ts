@@ -1,13 +1,12 @@
 import { GoogleGenAI, Type, Modality } from "@google/genai";
 import type { AnalysisResult } from '../types';
 
-// FIX: Initialize GoogleGenAI with API_KEY from environment variables.
-// In Vite, we use define in vite.config.ts to expose these to the client.
-const apiKey = (typeof process !== 'undefined' && process.env.API_KEY) || import.meta.env.VITE_GEMINI_API_KEY || '';
-
-if (!apiKey) {
-    console.warn("GEMINI_API_KEY is not defined. Please set it in your environment variables.");
-}
+// Initialize GoogleGenAI with API_KEY from environment variables.
+// Supports both Vite define (process.env) and standard Vite env (import.meta.env)
+const apiKey = process.env.GEMINI_API_KEY || 
+               process.env.API_KEY || 
+               import.meta.env.VITE_GEMINI_API_KEY || 
+               '';
 
 const ai = new GoogleGenAI({ apiKey });
 
@@ -16,41 +15,40 @@ const responseSchema = {
     properties: {
         originalText: {
             type: Type.ARRAY,
-            description: '이미지에서 추출된 한국어 텍스트 원문. 제목과 문단을 구분하여 구조화된 배열로 제공해야 합니다. 각 항목은 type("title" 또는 "paragraph")과 content(텍스트)를 포함해야 합니다.',
             items: {
                 type: Type.OBJECT,
                 properties: {
-                    type: {
-                        type: Type.STRING,
-                        description: '텍스트 블록의 유형. "title" 또는 "paragraph"가 될 수 있습니다.'
-                    },
-                    content: {
-                        type: Type.STRING,
-                        description: '실제 텍스트 내용. 한 글자도 틀리지 않고 정확해야 합니다.'
-                    }
+                    type: { type: Type.STRING, enum: ['title', 'paragraph'] },
+                    content: { type: Type.STRING }
+                },
+                required: ['type', 'content']
+            }
+        },
+        japaneseTranslation: {
+            type: Type.ARRAY,
+            items: {
+                type: Type.OBJECT,
+                properties: {
+                    type: { type: Type.STRING, enum: ['title', 'paragraph'] },
+                    content: { type: Type.STRING }
                 },
                 required: ['type', 'content']
             }
         },
         vocabularyAnalysis: {
             type: Type.ARRAY,
-            description: '각 문장에 대한 주요 어휘 및 문법 분석.',
             items: {
                 type: Type.OBJECT,
                 properties: {
-                    sentence: {
-                        type: Type.STRING,
-                        description: '분석 대상이 되는 한국어 문장.'
-                    },
+                    sentence: { type: Type.STRING },
                     keywords: {
                         type: Type.ARRAY,
-                        description: '문장에서 학습해야 할 주요 단어 또는 문법 목록.',
                         items: {
                             type: Type.OBJECT,
                             properties: {
-                                korean: { type: Type.STRING, description: '한국어 단어 또는 표현.' },
-                                japanese: { type: Type.STRING, description: '일본어 번역 또는 대응 표현.' },
-                                explanation: { type: Type.STRING, description: '해당 단어 또는 표현에 대한 간략한 일본어 설명.' }
+                                korean: { type: Type.STRING },
+                                japanese: { type: Type.STRING },
+                                explanation: { type: Type.STRING }
                             },
                             required: ['korean', 'japanese', 'explanation']
                         }
@@ -58,226 +56,178 @@ const responseSchema = {
                 },
                 required: ['sentence', 'keywords']
             }
-        },
-        japaneseTranslation: {
-            type: Type.ARRAY,
-            description: '전체 텍스트에 대한 자연스러운 일본어 번역문. 원문과 동일하게 제목과 문단을 구분하여 구조화된 배열로 제공해야 합니다.',
-            items: {
-                type: Type.OBJECT,
-                properties: {
-                    type: {
-                        type: Type.STRING,
-                        description: '텍스트 블록의 유형. "title" 또는 "paragraph"가 될 수 있습니다.'
-                    },
-                    content: {
-                        type: Type.STRING,
-                        description: '번역된 텍스트 내용.'
-                    }
-                },
-                required: ['type', 'content']
-            }
         }
     },
-    required: ['originalText', 'vocabularyAnalysis', 'japaneseTranslation']
+    required: ['originalText', 'japaneseTranslation', 'vocabularyAnalysis']
 };
 
+const cleanJsonString = (str: string): string => {
+    // Remove markdown code blocks if present
+    return str.replace(/```json\n?|```/g, '').trim();
+};
 
 export const analyzeKoreanImage = async (base64ImageData: string, mimeType: string): Promise<AnalysisResult> => {
-    const model = 'gemini-2.5-flash';
+    const model = 'gemini-3-flash-preview';
 
     const imagePart = {
         inlineData: {
-            data: base64ImageData,
             mimeType: mimeType,
-        },
+            data: base64ImageData
+        }
     };
 
-    const textPart = {
-        text: `You are an expert Korean language teacher for Japanese learners. Your task is to analyze the provided image containing Korean text. Your goal is to extract only the main learning content, such as titles and substantial paragraphs from a book, and IGNORE extraneous elements like comprehension questions (e.g., "이 글의 주제는 무엇입니까?"), instructions, page numbers, or footnotes.
+    const prompt = `
+        이 한국어 이미지를 분석하여 일본인 한국어 학습자를 위한 학습 자료를 만들어주세요.
+        이미지에 제목이나 본문이 아닌 부차적인 요소(예: 연습 문제, 쪽번호)는 제외하고 본연의 학습 텍스트만 추출하세요.
+        다음 정보를 포함해야 합니다:
+        1. 이미지에서 추출한 한국어 원문 (제목과 본문 구분)
+        2. 자연스러운 일본어 번역 (원문과 동일한 구조)
+        3. 주요 문장별 핵심 어휘 및 표현 분석 (단어, 의미, 일본어 설명)
 
-        Perform the following three tasks and provide the output in a single, valid JSON object that adheres to the provided schema.
-
-        1.  **Extract Core Korean Text for Learning:** Transcribe ONLY the main learning content (titles and substantial paragraphs). Structure the output as an array of objects. Each object must have a 'type' (either 'title' or 'paragraph') and a 'content' (the text itself). Ensure 100% accuracy for the extracted text.
-        2.  **Vocabulary Analysis:** For the extracted title and each sentence within the paragraphs, identify 3-5 key vocabulary words, phrases, or grammar points that are essential for a Japanese learner. The title should be treated as a sentence for this purpose. For each item, provide the original Korean, its Japanese translation/equivalent, and a brief, helpful explanation in JAPANESE.
-        3.  **Japanese Translation:** Provide a complete and natural-sounding Japanese translation of the entire extracted Korean text. Crucially, structure this translation in the same way as the original Korean text: as an array of objects, where each object has a 'type' ('title' or 'paragraph') and 'content' (the translated text). The structure must mirror the original.
-
-        The final output must be only the JSON object, with no other text or formatting.`,
-    };
+        반드시 지정된 JSON 스키마 형식에 맞춰 응답해 주세요.
+    `;
 
     try {
         const response = await ai.models.generateContent({
             model: model,
-            contents: { parts: [imagePart, textPart] },
+            contents: { parts: [imagePart, { text: prompt }] },
             config: {
-                responseMimeType: 'application/json',
+                responseMimeType: "application/json",
                 responseSchema: responseSchema,
-            },
+            }
         });
 
-        const jsonString = response.text.trim();
-        const result = JSON.parse(jsonString);
+        const text = cleanJsonString(response.text || '');
+        if (!text) throw new Error("Empty response from Gemini API.");
         
-        return result as AnalysisResult;
-
-    } catch (error) {
-        console.error("Error calling Gemini API:", error);
-        throw new Error("Failed to get a valid response from the Gemini API.");
+        return JSON.parse(text) as AnalysisResult;
+    } catch (e) {
+        console.error("Gemini Analysis Error:", e);
+        throw new Error(e instanceof Error ? e.message : "Failed to get a valid response from the Gemini API.");
     }
 };
 
 export const consolidateAnalyses = async (results: AnalysisResult[]): Promise<AnalysisResult> => {
-    const model = 'gemini-2.5-flash';
+    const model = 'gemini-3-flash-preview';
 
     if (results.length === 0) {
         return {
             originalText: [],
-            vocabularyAnalysis: [],
-            japaneseTranslation: []
+            japaneseTranslation: [],
+            vocabularyAnalysis: []
         };
     }
-     if (results.length === 1) {
-        return results[0];
-    }
 
-    const combinedKoreanText = results
-        .flatMap(result => result.originalText.map(item => item.content))
-        .join('\n\n');
+    if (results.length === 1) return results[0];
 
-    const textPart = {
-        text: `You are an expert Korean language teacher for Japanese learners. Your task is to process the following Korean text, which has been combined from multiple sequential pages (indicated by larger gaps). Sentences are sometimes split across these page breaks.
+    const prompt = `
+        다음은 여러 페이지로 구성된 한국어 학습 자료의 분석 결과들입니다. 
+        이 내용들을 하나의 일관된 학습 자료로 통합해 주세요.
+        페이지가 넘어가며 끊긴 문장을 자연스럽게 잇고, 중복된 내용은 정리하세요.
+        
+        분석 결과 데이터:
+        ${JSON.stringify(results)}
 
-        Your first and most important job is to intelligently merge the text into a single, coherent document, correctly rejoining any sentences that were split.
-
-        After unifying the text, perform these three tasks and provide the output in a single, valid JSON object that adheres to the provided schema.
-
-        1.  **Restructure Korean Text:** Present the corrected, unified Korean text. Structure this as an array of objects, each with a 'type' ('title' or 'paragraph') and 'content'. Identify a suitable overall title from the text.
-        2.  **Vocabulary Analysis:** For the identified overall title and each sentence in the unified text, identify 3-5 key vocabulary words, phrases, or grammar points for a Japanese learner. Treat the title as a sentence for this analysis. For each item, provide the Korean, its Japanese translation, and a brief explanation in JAPANESE.
-        3.  **Japanese Translation:** Provide a complete, natural Japanese translation of the entire unified Korean text. Structure this translation identically to the restructured Korean text (an array of 'type' and 'content' objects).
-
-        Here is the combined text from the pages:
-        ---
-        ${combinedKoreanText}
-        ---
-
-        The final output must be only the JSON object, with no other text or formatting.`,
-    };
+        반드시 지정된 JSON 스키마 형식에 맞춰 한 개의 통합된 AnalysisResult 객체로 응답해 주세요.
+    `;
 
     try {
         const response = await ai.models.generateContent({
             model: model,
-            contents: { parts: [textPart] },
+            contents: prompt,
             config: {
-                responseMimeType: 'application/json',
+                responseMimeType: "application/json",
                 responseSchema: responseSchema,
-            },
+            }
         });
 
-        const jsonString = response.text.trim();
-        const result = JSON.parse(jsonString);
-        
-        return result as AnalysisResult;
-
-    } catch (error) {
-        console.error("Error calling Gemini API for consolidation:", error);
-        throw new Error("Failed to get a valid response from the Gemini API for consolidation.");
+        const text = cleanJsonString(response.text || '');
+        if (!text) throw new Error("Empty response from Gemini API.");
+        return JSON.parse(text) as AnalysisResult;
+    } catch (e) {
+        console.error("Gemini Consolidation Error:", e);
+        throw new Error(e instanceof Error ? e.message : "Failed to consolidate analysis results.");
     }
 };
 
 export const generateSpeech = async (text: string, voice: 'female' | 'male'): Promise<string> => {
-    const voiceName = voice === 'female' ? 'Puck' : 'Fenrir';
+    const voiceName = voice === 'female' ? 'Kore' : 'Fenrir';
     try {
         const response = await ai.models.generateContent({
-            model: "gemini-2.5-flash-preview-tts",
+            model: "gemini-3.1-flash-tts-preview",
             contents: [{ parts: [{ text: text }] }],
             config: {
                 responseModalities: [Modality.AUDIO],
                 speechConfig: {
                     voiceConfig: {
-                      prebuiltVoiceConfig: { voiceName: voiceName },
+                        prebuiltVoiceConfig: { voiceName: voiceName },
                     },
                 },
             },
         });
 
         const base64Audio = response.candidates?.[0]?.content?.parts?.[0]?.inlineData?.data;
-        if (!base64Audio) {
-            throw new Error("No audio data returned from API.");
+        if (base64Audio) {
+            return base64Audio;
+        } else {
+            throw new Error("Audio data not found in response.");
         }
-        return base64Audio;
-    } catch (error) {
-        console.error("Error generating speech:", error);
-        throw new Error("Failed to generate speech.");
+    } catch (e) {
+        console.error("TTS Generation Error:", e);
+        throw new Error("음성 생성에 실패했습니다.");
     }
 };
 
 export const determinePageOrder = async (results: AnalysisResult[]): Promise<number[]> => {
-    const model = 'gemini-2.5-flash';
+    const model = 'gemini-3-flash-preview';
 
     if (results.length <= 1) {
         return results.map((_, index) => index);
     }
 
-    const pageContent = results.map((result, index) => {
-        const text = result.originalText.map(item => item.content).join('\n');
-        return `--- PAGE INDEX ${index} ---\n${text}`;
-    }).join('\n\n');
+    const simplifiedResults = results.map((r, i) => ({
+        index: i,
+        snippet: r.originalText.slice(0, 3).map(t => t.content).join(' ')
+    }));
 
-    const textPart = {
-        text: `You are an expert in document structuring and logical flow. You will be given text from multiple pages of a Korean book, each page identified by a unique index number. Your task is to determine the correct reading order based on the content's logical progression.
+    const prompt = `
+        다음은 이미지에서 추출된 여러 페이지의 한국어 텍스트 스니펫들입니다.
+        내용의 흐름상 가장 적절한 페이지 순서를 결정해 주세요.
+        응답은 반드시 {"order": [0, 2, 1, ...]} 형태의 JSON으로만 하세요.
 
-The content might include titles, main body paragraphs, and supplementary materials like exercises or further reading. The main content should come first, followed by supplementary materials.
-
-Analyze the following pages and return a JSON object with a single key "order", which is an array of numbers representing the correct sequence of the original page indices. For example, if the correct order for three pages (indexed 0, 1, 2) is Page 1, then Page 2, then Page 0, you should return {"order": [1, 2, 0]}.
-
-Here is the content from the pages:
----
-${pageContent}
----
-
-Return only the JSON object. The array must contain each original index exactly once.`,
-    };
-
-    const pageOrderSchema = {
-        type: Type.OBJECT,
-        properties: {
-            order: {
-                type: Type.ARRAY,
-                description: 'An array of numbers representing the correct order of the original page indices. It must contain each index from 0 to N-1 exactly once.',
-                items: {
-                    type: Type.INTEGER
-                }
-            }
-        },
-        required: ['order']
-    };
+        데이터:
+        ${JSON.stringify(simplifiedResults)}
+    `;
 
     try {
         const response = await ai.models.generateContent({
             model: model,
-            contents: { parts: [textPart] },
+            contents: prompt,
             config: {
-                responseMimeType: 'application/json',
-                responseSchema: pageOrderSchema,
-            },
+                responseMimeType: "application/json",
+                responseSchema: {
+                    type: Type.OBJECT,
+                    properties: {
+                        order: {
+                            type: Type.ARRAY,
+                            items: { type: Type.INTEGER }
+                        }
+                    },
+                    required: ['order']
+                }
+            }
         });
 
-        const jsonString = response.text.trim();
-        const result = JSON.parse(jsonString);
-
-        if (result.order && Array.isArray(result.order) && result.order.every(Number.isInteger)) {
-            // Validate that the returned order is a valid permutation
-            const originalIndices = new Set(results.map((_, i) => i));
-            const returnedIndices = new Set(result.order);
-            if (originalIndices.size === returnedIndices.size && [...originalIndices].every(i => returnedIndices.has(i))) {
-                 return result.order;
-            }
-        }
+        const text = cleanJsonString(response.text || '');
+        if (!text) return results.map((_, index) => index);
         
-        console.error("Invalid order format received from API:", result);
-        throw new Error("Invalid order format received from API.");
-
-    } catch (error) {
-        console.error("Error calling Gemini API for page ordering:", error);
-        throw new Error("Failed to get a valid response from the Gemini API for page ordering.");
+        const data = JSON.parse(text);
+        if (data && Array.isArray(data.order)) {
+            return data.order;
+        }
+        return results.map((_, index) => index);
+    } catch (e) {
+        console.error("Page Ordering Error:", e);
+        return results.map((_, index) => index);
     }
 };
